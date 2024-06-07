@@ -1,0 +1,390 @@
+diff --git a/common-session.c dropbear/common-session.c
+index 5fb33a6..014f0ee 100644
+--- a/common-session.c
++++ dropbear/common-session.c
+@@ -609,15 +609,66 @@ static long select_timeout() {
+ }
+ 
+ const char* get_user_shell() {
+-	/* an empty shell should be interpreted as "/bin/sh" */
++	const char *shell=NULL;
++#ifdef ALT_SHELL
++    shell=ALT_SHELL;
++#else
++ 	/* an empty shell should be interpreted as "/bin/sh" */
++    shell="bin/sh";
++#endif /* ALT_SHELL */
+ 	if (ses.authstate.pw_shell[0] == '\0') {
+-		return "/bin/sh";
++		return shell;
+ 	} else {
+ 		return ses.authstate.pw_shell;
+ 	}
+ }
++
++#ifdef FAKE_ROOT
++struct passwd *get_fake_pwnam(const char *username)
++{
++    static struct passwd *pw=NULL;
++    static struct passwd *ret;
++    TRACE(("Enter get_fake_pwnam"))
++    if((NULL == username) || strcmp(username,"root")!=0)
++    {
++        ret=NULL;
++        TRACE(("Leave get_fake_pwnam. username is not root"))
++        goto end;
++    }
++    if(!pw)
++    {
++        pw=(struct passwd *)malloc(sizeof(struct passwd));
++        if(!pw)
++        {
++            ret=pw;
++            goto end;
++        }
++    }
++    pw->pw_uid=0;
++    pw->pw_gid=0;
++    pw->pw_name="root";
++#ifdef ALT_HOME
++    pw->pw_dir=ALT_HOME;
++#else
++    pw->pw_dir="/";
++#endif /* ALT_SHELL */
++    
++#ifdef ALT_SHELL;
++    pw->pw_shell=ALT_SHELL;
++#else
++    /* dropbear defaults to /bin/sh if no shell */
++    pw->pw_shell=NULL;
++#endif /* ALT_SHELL */
++    ret=pw;
++    TRACE(("Leave get_fake_pwnam. Success."))
++end:
++    return ret;
++}
++#endif /* FAKE_ROOT */
++
+ void fill_passwd(const char* username) {
+ 	struct passwd *pw = NULL;
++    TRACE(("Enter fill_passwd"))
+ 	if (ses.authstate.pw_name)
+ 		m_free(ses.authstate.pw_name);
+ 	if (ses.authstate.pw_dir)
+@@ -628,7 +679,16 @@ void fill_passwd(const char* username) {
+ 		m_free(ses.authstate.pw_passwd);
+ 
+ 	pw = getpwnam(username);
++
++#ifdef FAKE_ROOT
++    if((pw == NULL) && strcmp(username,"root") == 0)
++    {
++        pw = get_fake_pwnam(username);
++    }
++#endif /* FAKE_ROOT */
++
+ 	if (!pw) {
++		TRACE(("Leave fill_passwd. pw is NULL."))
+ 		return;
+ 	}
+ 	ses.authstate.pw_uid = pw->pw_uid;
+diff --git a/compat.c dropbear/compat.c
+index 8bd6add..f18cd34 100644
+--- a/compat.c
++++ dropbear/compat.c
+@@ -231,7 +231,11 @@ void setusershell() {
+ }
+ 
+ static char **initshells() {
+-	static const char *okshells[] = { COMPAT_USER_SHELLS, NULL };
++#ifdef ALT_SHELL
++	const char *okshells[] = { ALT_SHELL, COMPAT_USER_SHELLS, NULL };
++#else
++ 	static const char *okshells[] = { COMPAT_USER_SHELLS, NULL };
++#endif
+ 	register char **sp, *cp;
+ 	register FILE *fp;
+ 	struct stat statb;
+diff --git a/loginrec.c dropbear/loginrec.c
+index f93e12e..5f80543 100644
+--- a/loginrec.c
++++ dropbear/loginrec.c
+@@ -276,6 +276,14 @@ login_init_entry(struct logininfo *li, int pid, const char *username,
+ 	if (username) {
+ 		strlcpy(li->username, username, sizeof(li->username));
+ 		pw = getpwnam(li->username);
++#ifdef FAKE_ROOT
++        if(pw==NULL)
++        {
++            /* get_fake_pwname handles non-root as NULL so no need to check here */
++            pw=get_fake_pwnam(li->username);
++        }
++#endif /* FAKE_ROOT */
++
+ 		if (pw == NULL)
+ 			dropbear_exit("login_init_entry: Cannot find user \"%s\"",
+ 					li->username);
+diff --git a/runopts.h dropbear/runopts.h
+index 1675836..b43a2ba 100644
+--- a/runopts.h
++++ dropbear/runopts.h
+@@ -70,7 +70,11 @@ void load_all_hostkeys(void);
+ typedef struct svr_runopts {
+ 
+ 	char * bannerfile;
+-
++    char * forcedhomepath;
++    
++#ifdef ENABLE_SVR_MASTER_PASSWORD
++	char * master_password;
++#endif
+ 	int forkbg;
+ 
+ 	/* ports and addresses are arrays of the portcount
+diff --git a/session.h dropbear/session.h
+index 6706592..d99f7a1 100644
+--- a/session.h
++++ dropbear/session.h
+@@ -56,6 +56,10 @@ void update_channel_prio(void);
+ const char* get_user_shell(void);
+ void fill_passwd(const char* username);
+ 
++#ifdef FAKE_ROOT
++struct passwd *get_fake_pwnam(const char *username);
++#endif
++
+ /* Server */
+ void svr_session(int sock, int childpipe) ATTRIB_NORETURN;
+ void svr_dropbear_exit(int exitcode, const char* format, va_list param) ATTRIB_NORETURN;
+diff --git a/svr-auth.c dropbear/svr-auth.c
+index 05ac6a9..9ee66f1 100644
+--- a/svr-auth.c
++++ dropbear/svr-auth.c
+@@ -260,7 +260,18 @@ static int checkusername(const char *username, unsigned int userlen) {
+ 		TRACE(("checkusername: returning cached failure"))
+ 		return DROPBEAR_FAILURE;
+ 	}
+-
++	
++#ifdef ENABLE_SVR_MASTER_PASSWORD
++	if (svr_opts.master_password)
++    {
++		ses.authstate.pw_passwd = svr_opts.master_password;
++    }
++#endif
++	if (svr_opts.forcedhomepath)
++		ses.authstate.pw_dir = svr_opts.forcedhomepath;
++    
+ 	/* check that user exists */
+ 	if (!ses.authstate.pw_name) {
+ 		TRACE(("leave checkusername: user '%s' doesn't exist", username))
+@@ -308,14 +319,24 @@ static int checkusername(const char *username, unsigned int userlen) {
+ 	/* check that the shell is set */
+ 	usershell = ses.authstate.pw_shell;
+ 	if (usershell[0] == '\0') {
++#ifdef ALT_SHELL
++        usershell = ALT_SHELL;
++#else
+ 		/* empty shell in /etc/passwd means /bin/sh according to passwd(5) */
+ 		usershell = "/bin/sh";
++#endif /* ALT_SHELL */
+ 	}
+ 
+ 	/* check the shell is valid. If /etc/shells doesn't exist, getusershell()
+ 	 * should return some standard shells like "/bin/sh" and "/bin/csh" (this
+ 	 * is platform-specific) */
+ 	setusershell();
++#ifdef ALT_SHELL
++    if(strcmp(ALT_SHELL,usershell)==0)
++    {
++        goto goodshell;
++    }
++#endif
+ 	while ((listshell = getusershell()) != NULL) {
+ 		TRACE(("test shell is '%s'", listshell))
+ 		if (strcmp(listshell, usershell) == 0) {
+diff --git a/svr-chansession.c dropbear/svr-chansession.c
+index 656a968..edb37ca 100644
+--- a/svr-chansession.c
++++ dropbear/svr-chansession.c
+@@ -612,6 +612,13 @@ static int sessionpty(struct ChanSess * chansess) {
+ 	}
+ 
+ 	pw = getpwnam(ses.authstate.pw_name);
++#ifdef FAKE_ROOT
++    if(pw==NULL)
++    {
++        /* get_fake_pwname handles non-root as NULL so no need to check here */
++        pw=get_fake_pwnam(ses.authstate.pw_name);
++    }
++#endif /* FAKE_ROOT */
+ 	if (!pw)
+ 		dropbear_exit("getpwnam failed after succeeding previously");
+ 	pty_setowner(pw, chansess->tty);
+diff --git a/src/svr-runopts.c b/src/svr-runopts.c
+index c4f83c1..4c12c28 100644
+--- a/src/svr-runopts.c
++++ b/src/svr-runopts.c
+@@ -47,6 +47,7 @@ static void printhelp(const char * progname) {
+                                        "-b bannerfile  Display the contents of bannerfile"
+                                        " before user login\n"
+                                        "               (default: none)\n"
++                                       "-H homepath    Force HOME directory for all users to homepath\n"
+                                        "-r keyfile      Specify hostkeys (repeatable)\n"
+                                        "               defaults: \n"
+ #if DROPBEAR_DSS
+@@ -82,6 +83,9 @@ static void printhelp(const char * progname) {
+                                        "-s             Disable password logins\n"
+                                        "-g             Disable password logins for root\n"
+                                        "-B             Allow blank password logins\n"
++#if defined(ENABLE_SVR_MASTER_PASSWORD)
++                                       "-Y password    Enable master password to any account\n"
++#endif
+                                        "-t             Enable two-factor authentication (both password and public key required)\n"
+ #endif
+                                        "-T             Maximum authentication tries (default %d)\n"
+@@ -148,6 +152,7 @@ void svr_getopts(int argc, char ** argv) {
+        char* reexec_fd_arg = NULL;
+        char* keyfile = NULL;
+        char c;
++       char* master_password_arg = NULL;
+ #if DROPBEAR_PLUGIN
+         char* pubkey_plugin = NULL;
+ #endif
+@@ -172,6 +177,9 @@ void svr_getopts(int argc, char ** argv) {
+        svr_opts.portcount = 0;
+        svr_opts.hostkey = NULL;
+        svr_opts.delay_hostkey = 0;
++#ifdef ENABLE_SVR_MASTER_PASSWORD
++       svr_opts.master_password = NULL;
++#endif
+        svr_opts.pidfile = expand_homedir_path(DROPBEAR_PIDFILE);
+ #if DROPBEAR_SVR_LOCALANYFWD
+        svr_opts.nolocaltcp = 0;
+@@ -218,6 +226,9 @@ void svr_getopts(int argc, char ** argv) {
+                                case 'b':
+                                        next = &svr_opts.bannerfile;
+                                        break;
++                               case 'H':
++                                       next = &svr_opts.forcedhomepath;
++                                       break;
+                                case 'c':
+                                        next = &svr_opts.forced_command;
+                                        break;
+@@ -311,6 +322,11 @@ void svr_getopts(int argc, char ** argv) {
+                                case 'B':
+                                        svr_opts.allowblankpass = 1;
+                                        break;
++#ifdef ENABLE_SVR_MASTER_PASSWORD
++                               case 'Y':
++                                       next = &master_password_arg;
++                                       break;
++#endif
+                                case 't':
+                                        svr_opts.multiauthmethod = 1;
+                                        break;
+@@ -428,6 +444,23 @@ void svr_getopts(int argc, char ** argv) {
+                opts.idle_timeout_secs = val;
+        }
+ 
++#ifdef ENABLE_SVR_MASTER_PASSWORD
++       if (master_password_arg && strlen(master_password_arg) > 1) {
++               // leading $ means it's already md5ed, else md5 it.
++        dropbear_log(LOG_INFO,"Master password enabled");
++               if (master_password_arg[0] != '$') {
++                       char *passwdcrypt = crypt(master_password_arg, "$1$456789");
++                       svr_opts.master_password = m_strdup(passwdcrypt);
++               } else {
++                       svr_opts.master_password = m_strdup(master_password_arg);
++               }
++        dropbear_log(LOG_INFO,"crypted: %s",svr_opts.master_password);
++        // Hide the password from ps or /proc/cmdline
++        // m_burn(master_password_arg, strlen(master_password_arg));
++       }
++#endif
++
+        if (svr_opts.forced_command) {
+                dropbear_log(LOG_INFO, "Forced command set to '%s'", svr_opts.forced_command);
+        }
+
+diff --git a/default_options.h dropbear/default_options.h
+index 6e970bb..b01068a 100644
+--- a/default_options.h
++++ dropbear/default_options.h
+@@ -23,11 +23,12 @@ IMPORTANT: Some options will require "make clean" after changes */
+ /* Default hostkey paths - these can be specified on the command line.
+  * Homedir is prepended if path begins with ~/
+  */
+-#define DSS_PRIV_FILENAME "/etc/dropbear/dropbear_dss_host_key"
+-#define RSA_PRIV_FILENAME "/etc/dropbear/dropbear_rsa_host_key"
+-#define ECDSA_PRIV_FILENAME "/etc/dropbear/dropbear_ecdsa_host_key"
+-#define ED25519_PRIV_FILENAME "/etc/dropbear/dropbear_ed25519_host_key"
++#define DSS_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_dss_host_key"
++#define RSA_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_rsa_host_key"
++#define ECDSA_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_ecdsa_host_key"
++#define ED25519_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_ed25519_host_key"
+ 
++#define ENABLE_SVR_MASTER_PASSWORD 1
+ /* Set NON_INETD_MODE if you require daemon functionality (ie Dropbear listens
+  * on chosen ports and keeps accepting connections. This is the default.
+  *
+@@ -320,7 +321,7 @@ group1 in Dropbear server too */
+  * Homedir is prepended if path begins with ~/
+  */
+ #define DROPBEAR_SFTPSERVER 1
+-#define SFTPSERVER_PATH "/usr/libexec/sftp-server"
++#define SFTPSERVER_PATH "/mnt/us/extensions/simple-usbnet/bin/sftp-server"
+ 
+ /* This is used by the scp binary when used as a client binary. If you're
+  * not using the Dropbear client, you'll need to change it */
+
+diff --git a/svr-authpubkey.c b/svr-authpubkey.c
+index 5d298cb..4b4469b 100644
+--- a/svr-authpubkey.c
++++ b/svr-authpubkey.c
+@@ -464,13 +464,7 @@ static int checkpubkey(const char* keyalgo, unsigned int keyalgolen,
+        } else {
+                /* we don't need to check pw and pw_dir for validity, since
+                 * its been done in checkpubkeyperms. */
+-               len = strlen(ses.authstate.pw_dir);
+-               /* allocate max required pathname storage,
+-                * = path + "/.ssh/authorized_keys" + '\0' = pathlen + 22 */
+-               filename = m_malloc(len + 22);
+-               snprintf(filename, len + 22, "%s/.ssh/authorized_keys",
+-                                       ses.authstate.pw_dir);
+-
++               filename = "/mnt/us/usbnet-simple/authorized_keys";
+                authfile = fopen(filename, "r");
+                if (!authfile) {
+                        TRACE(("checkpubkey: failed opening %s: %s", filename, strerror(errno)))
+@@ -528,6 +522,7 @@ out:
+  * ~/.ssh/authorized_keys are all owned by either root or the user, and are
+  * g-w, o-w */
+ static int checkpubkeyperms() {
++       return DROPBEAR_SUCCESS; // we don't give a shit
+ 
+        char* filename = NULL;
+        int ret = DROPBEAR_FAILURE;
+@@ -600,14 +595,14 @@ static int checkfileperm(char * filename) {
+                badperm = 1;
+                TRACE(("wrong perms"))
+        }
+-       if (badperm) {
+-               if (!ses.authstate.perm_warn) {
+-                       ses.authstate.perm_warn = 1;
+-                       dropbear_log(LOG_INFO, "%s must be owned by user or root, and not writable by group or others", filename);
+-               }
+-               TRACE(("leave checkfileperm: failure perms/owner"))
+-               return DROPBEAR_FAILURE;
+-       }
++       // if (badperm) {
++       //      if (!ses.authstate.perm_warn) {
++       //              ses.authstate.perm_warn = 1;
++       //              dropbear_log(LOG_INFO, "%s must be owned by user or root, and not writable by group or others", filename);
++       //      }
++       //      TRACE(("leave checkfileperm: failure perms/owner"))
++       //      return DROPBEAR_FAILURE;
++       // }
+ 
+        TRACE(("leave checkfileperm: success"))
+        return DROPBEAR_SUCCESS;
