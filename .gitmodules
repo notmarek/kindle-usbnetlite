@@ -1,0 +1,6 @@
+[submodule "dropbear"]
+	path = dropbear
+	url = https://github.com/mkj/dropbear
+[submodule "openssh"]
+	path = openssh
+	url = https://github.com/openssh/openssh-portable
