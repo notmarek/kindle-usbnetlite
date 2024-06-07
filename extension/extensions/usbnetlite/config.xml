@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension>
+	<information>
+		<name>USBNetLite</name>
+		<version>1.0</version>
+		<author>Marek</author>
+		<id>USBNetLite-Menu</id>
+	</information>
+	<menus>
+		<menu type="json" dynamic="true">menu.json</menu>
+	</menus>
+</extension>

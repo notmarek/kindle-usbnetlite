@@ -1,0 +1,113 @@
+#!/bin/sh
+#
+# Trick volumd into using a custom modprobe call...
+#
+# $Id: usbnet-link 15011 2018-06-02 16:58:21Z NiLuJe $
+#
+##
+
+# Hardcode hackname for usbnet, because we can be called from /test/bin when invoked by the private command usbNetwork
+KH_HACKNAME="usbnetlite"
+
+# Try to pull our custom helper lib
+_KH_FUNCS="/mnt/us/${KH_HACKNAME}/bin/libkh5"
+if [ -f ${_KH_FUNCS} ] ; then
+    . ${_KH_FUNCS}
+else
+    # Pull default helper functions for logging
+    _FUNCTIONS=/etc/upstart/functions
+    [ -f ${_FUNCTIONS} ] && . ${_FUNCTIONS}
+    # We couldn't get our custom lib, abort
+    f_log W usbnet script "" "couldn't source libkh5 from '${KH_HACKNAME}'"
+    exit 0
+fi
+
+## Check if our kdb keyfile looks okay
+# Arg 1 is the file to check
+is_kdb_keyfile_okay()
+{
+    kdb_key="${1}"
+
+    if [ $(stat -c %s "${kdb_key}") -eq 81 ] ; then
+        # Good :)
+        return 0
+    fi
+
+    # Meep!
+    kh_msg "** kdb keyfile looks wrong" W a
+    return 1
+}
+
+# Set the bind mount up
+do_volumd_tweak() {
+    # We need our config...
+    if [ -f "${USBNETLITE_IFCONFIG}" ] ; then
+        . ${USBNETLITE_IFCONFIG}
+    else
+        kh_msg "!! missing usbnet config" W q
+    fi
+
+    # If we requested volumd & tweaking the mac address, make sure everything is mostly sane
+    if [ "${TWEAK_MAC_ADDRESS}" == "true" ] ; then
+        # No custom keyfile?
+        if [ ! -f "${USBNET_BASEDIR}/etc/TURN_ON_NETWORKING_COMMAND" ] ; then
+            kh_msg "!! no custom keyfile, TWEAK_MAC_ADDRESS has been disabled" W a "no custom keyfile"
+            TWEAK_MAC_ADDRESS="false"
+        fi
+
+        # custom keyfile looks iffy?
+        if ! is_kdb_keyfile_okay "${USBNET_BASEDIR}/etc/TURN_ON_NETWORKING_COMMAND" ; then
+            kh_msg "!! broken custom keyfile, TWEAK_MAC_ADDRESS has been disabled" W a "broken custom keyfile"
+            TWEAK_MAC_ADDRESS="false"
+        fi
+    fi
+
+    # Trick volumd into using a different command if we requested custom MAC addresses...
+    if [ "${TWEAK_MAC_ADDRESS}" == "true" ] ; then
+        # Don't mount twice...
+        if ! grep -q "^tmpfs $(readlink /etc/kdb)/system/daemon/volumd/TURN_ON_NETWORKING_COMMAND" /proc/mounts ; then
+            kh_msg "mounting custom kdb keyfile" I a
+
+            # As expected, it requires specific permissions, so do it from a tmpfs...
+            mkdir -p "/var/tmp/usbnet"
+            cp -f "${USBNET_BASEDIR}/etc/TURN_ON_NETWORKING_COMMAND" "/var/tmp/usbnet/TURN_ON_NETWORKING_COMMAND"
+            chmod 644 "/var/tmp/usbnet/TURN_ON_NETWORKING_COMMAND"
+
+            mount --bind "/var/tmp/usbnet/TURN_ON_NETWORKING_COMMAND" "/etc/kdb/system/daemon/volumd/TURN_ON_NETWORKING_COMMAND"
+            touch "${USBNET_BASEDIR}/etc/kdb_mounted"
+        else
+            kh_msg "custom kdb keyfile already mounted" W a
+            # Make sure it's still flagged
+            touch "${USBNET_BASEDIR}/etc/kdb_mounted"
+        fi
+    fi
+}
+
+# Tear it down
+undo_volumd_tweak() {
+    # Don't check anything, just do it!
+    if [ -f "${USBNET_BASEDIR}/etc/kdb_mounted" ] ; then
+        kh_msg "unmounting custom kdb keyfile" I a
+        umount -l "/etc/kdb/system/daemon/volumd/TURN_ON_NETWORKING_COMMAND"
+        rm -f "${USBNET_BASEDIR}/etc/kdb_mounted"
+
+        # Cleanup the stuff in tmp...
+        rm -rf "/var/tmp/usbnet"
+   fi
+}
+
+# Main
+case "${1}" in
+    "link" )
+        do_volumd_tweak
+    ;;
+    "unlink" )
+        undo_volumd_tweak
+    ;;
+    * )
+        kh_msg "Usage: $0 {link|unlink}" W q
+        exit 1
+    ;;
+esac
+
+exit 0

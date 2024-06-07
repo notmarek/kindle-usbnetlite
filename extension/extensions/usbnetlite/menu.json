@@ -1,0 +1,228 @@
+{
+	"items": [
+	{
+		"name": "USBNetLite",
+		"priority": -1,
+		"items": [
+		{
+			"name": "Show current version",
+			"action": "./bin/usbnet.sh",
+			"params": "show_version",
+			"exitmenu": false,
+			"checked": true,
+			"refresh": false,
+			"status": false,
+			"internal": "status Print the current version of the hack"
+		},
+		{
+			"name": "* Toggle USBNetwork *",
+			"action": "./bin/usbnet.sh",
+			"params": "toggle_usbnet",
+			"exitmenu": false,
+			"checked": true,
+			"refresh": false,
+			"status": false,
+			"internal": "status Toggle between USBNet & USBMS"
+		},
+		{
+			"name": "** USBNetwork Status **",
+			"action": "./bin/usbnet.sh",
+			"params": "usbnet_status",
+			"exitmenu": false,
+			"refresh": false,
+			"status": false,
+			"internal": "status Print current USBNetwork mode"
+		},
+		{
+			"name": "Enable SSH at boot",
+			"if": "\"/mnt/us/usbnet/auto\" -f!",
+			"action": "./bin/usbnet.sh",
+			"params": "enable_auto",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Boot the Kindle in USBNet mode"
+		},
+		{
+			"name": "Disable SSH at boot (Default)",
+			"if": "\"/mnt/us/usbnet/auto\" -f",
+			"action": "./bin/usbnet.sh",
+			"params": "disable_auto",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Boot the Kindle in USBMS mode"
+		},
+		{
+			"name": "Enable verbose mode",
+			"if": "\"/mnt/us/usbnet/verbose\" -f!",
+			"action": "./bin/usbnet.sh",
+			"params": "enable_verbose",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Make USBNetwork verbose"
+		},
+		{
+			"name": "Disable verbose mode (Default)",
+			"if": "\"/mnt/us/usbnet/verbose\" -f",
+			"action": "./bin/usbnet.sh",
+			"params": "disable_verbose",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Make USBNetwork quiet"
+		},
+		{
+			"name": "Allow SSH over WiFi",
+			"if": "\"Kindle2\" -m! \"KindleDX\" -m! \"KindleDXG\" -m! \"/mnt/us/usbnet/etc/config\" \"^USE_WIFI=.false.$\" -g \"/mnt/us/usbnet/etc/config\" \"^K3_WIFI=.false.$\" -g || && && &&",
+			"action": "./bin/usbnet.sh",
+			"params": "enable_wifi",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Enable SSH over WiFi"
+		},
+		{
+			"name": "Block SSH over WiFi (Default)",
+			"if": "\"Kindle2\" -m! \"KindleDX\" -m! \"KindleDXG\" -m! \"/mnt/us/usbnet/etc/config\" \"^USE_WIFI=.true.$\" -g \"/mnt/us/usbnet/etc/config\" \"^K3_WIFI=.true.$\" -g || && && &&",
+			"action": "./bin/usbnet.sh",
+			"params": "disable_wifi",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Disable SSH over WiFi"
+		},
+		{
+			"name": "Restrict SSH to WiFi, stay in USBMS",
+			"if": "\"Kindle2\" -m! \"KindleDX\" -m! \"KindleDXG\" -m! \"/mnt/us/usbnet/etc/config\" \"^USE_WIFI_SSHD_ONLY=.false.$\" -g \"/mnt/us/usbnet/etc/config\" \"^K3_WIFI_SSHD_ONLY=.false.$\" -g || && && &&",
+			"action": "./bin/usbnet.sh",
+			"params": "enable_sshd_only",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Enable SSHD only mode (usbms)"
+		},
+		{
+			"name": "Enable SSH over USB (Default)",
+			"if": "\"Kindle2\" -m! \"KindleDX\" -m! \"KindleDXG\" -m! \"/mnt/us/usbnet/etc/config\" \"^USE_WIFI_SSHD_ONLY=.true.$\" -g \"/mnt/us/usbnet/etc/config\" \"^K3_WIFI_SSHD_ONLY=.true.$\" -g || && && &&",
+			"action": "./bin/usbnet.sh",
+			"params": "disable_sshd_only",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Disable SSHD only mode (usbnet)"
+		},
+		{
+			"name": "SSHD: Use OpenSSH",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^USE_OPENSSH=.false.$\" -g",
+			"action": "./bin/usbnet.sh",
+			"params": "use_openssh",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Switch to OpenSSH"
+		},
+		{
+			"name": "SSHD: Use DropBear (Default)",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^USE_OPENSSH=.true.$\" -g",
+			"action": "./bin/usbnet.sh",
+			"params": "use_dropbear",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Switch to DropBear"
+		},
+		{
+			"name": "Make dropbear quieter",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^QUIET_DROPBEAR=.false.$\" -g",
+			"action": "./bin/usbnet.sh",
+			"params": "quiet_dropbear",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Don't let dropbear print the banner file"
+		},
+		{
+			"name": "Show dropbear banner (Default)",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^QUIET_DROPBEAR=.true.$\" -g",
+			"action": "./bin/usbnet.sh",
+			"params": "verbose_dropbear",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Let dropbear print the banner file"
+		},
+		{
+			"name": "Use unique MAC addresses",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^TWEAK_MAC_ADDRESS=.false.$\" -g",
+			"action": "./bin/usbnet.sh",
+			"params": "tweak_mac",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Tweak the MAC addresses to be tied to this specific device"
+		},
+		{
+			"name": "Use default MAC addresses (Default)",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^TWEAK_MAC_ADDRESS=.true.$\" -g",
+			"action": "./bin/usbnet.sh",
+			"params": "default_mac",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Don't tweak the MAC addresses"
+		},
+		{
+			"name": "Let volumd do its job",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^USE_VOLUMD=.false.$\" -g \"Kindle2\" -m \"KindleDX\" -m \"KindleDXG\" -m \"Kindle3\" -m || || || &&",
+			"action": "./bin/usbnet.sh",
+			"params": "use_volumd",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Use volumd"
+		},
+		{
+			"name": "Don't use volumd to switch kernel modules",
+			"if": "\"/mnt/us/usbnet/etc/config\" \"^USE_VOLUMD=.true.$\" -g \"Kindle2\" -m \"KindleDX\" -m \"KindleDXG\" -m \"Kindle3\" -m || || || &&",
+			"action": "./bin/usbnet.sh",
+			"params": "dont_use_volumd",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Don't use volumd"
+		},
+		{
+			"name": "Restore default config",
+			"action": "./bin/usbnet.sh",
+			"params": "restore_config",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Restore the default USBNet config file"
+		},
+		{
+			"name": "Flag for complete uninstall",
+			"if": "\"/mnt/us/usbnet/uninstall\" -f!",
+			"action": "./bin/usbnet.sh",
+			"params": "enable_uninstall",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Enable complete uninstall process (rm user content)"
+		},
+		{
+			"name": "Default uninstall behavior",
+			"if": "\"/mnt/us/usbnet/uninstall\" -f",
+			"action": "./bin/usbnet.sh",
+			"params": "disable_uninstall",
+			"exitmenu": false,
+			"refresh": true,
+			"status": false,
+			"internal": "status Do not flag this hack for complete uninstall"
+		}
+		]
+	}
+	]
+}

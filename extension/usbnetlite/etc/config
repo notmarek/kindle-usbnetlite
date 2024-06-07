@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# IPv4 only
+KINDLE_IP=192.168.15.244
+
+# Enable password override
+PASSWORD_OVERRIDE_ENABLED="true"
+PASSWORD="kindle"
+
+# Disabling this will enforce private key login
+ALLOW_PASSWORD_LOGIN="true"
+
+# SSH port
+PORT="22"
+
+# Enable ssh over wifi
+USE_WIFI="true"
+
+TWEAK_MAC_ADDRESS="false"

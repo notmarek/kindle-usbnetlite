@@ -233,10 +233,10 @@ index 6e970bb..b01068a 100644
 -#define RSA_PRIV_FILENAME "/etc/dropbear/dropbear_rsa_host_key"
 -#define ECDSA_PRIV_FILENAME "/etc/dropbear/dropbear_ecdsa_host_key"
 -#define ED25519_PRIV_FILENAME "/etc/dropbear/dropbear_ed25519_host_key"
-+#define DSS_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_dss_host_key"
-+#define RSA_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_rsa_host_key"
-+#define ECDSA_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_ecdsa_host_key"
-+#define ED25519_PRIV_FILENAME "/mnt/us/usbnet-simple/etc/dropbear/dropbear_ed25519_host_key"
++#define DSS_PRIV_FILENAME "/mnt/us/usbnetlite/etc/dropbear/dropbear_dss_host_key"
++#define RSA_PRIV_FILENAME "/mnt/us/usbnetlite/etc/dropbear/dropbear_rsa_host_key"
++#define ECDSA_PRIV_FILENAME "/mnt/us/usbnetlite/etc/dropbear/dropbear_ecdsa_host_key"
++#define ED25519_PRIV_FILENAME "/mnt/us/usbnetlite/etc/dropbear/dropbear_ed25519_host_key"
  
 +#define ENABLE_SVR_MASTER_PASSWORD 1
  /* Set NON_INETD_MODE if you require daemon functionality (ie Dropbear listens
@@ -247,7 +247,7 @@ index 6e970bb..b01068a 100644
   */
  #define DROPBEAR_SFTPSERVER 1
 -#define SFTPSERVER_PATH "/usr/libexec/sftp-server"
-+#define SFTPSERVER_PATH "/mnt/us/extensions/simple-usbnet/bin/sftp-server"
++#define SFTPSERVER_PATH "/mnt/us/usbnetlite/bin/sftp-server"
  
  /* This is used by the scp binary when used as a client binary. If you're
   * not using the Dropbear client, you'll need to change it */
@@ -266,7 +266,7 @@ index 6e970bb..b01068a 100644
 -					ses.authstate.pw_dir);
 -
 -		authfile = fopen(filename, "r");
-+       authfile = fopen("/mnt/us/usbnet-simple/authorized_keys", "r");
++       authfile = fopen("/mnt/us/usbnetlite/etc/dropbear/authorized_keys", "r");
                 if (!authfile) {
                         TRACE(("checkpubkey: failed opening %s: %s", filename, strerror(errno)))
 @@ -528,6 +522,7 @@

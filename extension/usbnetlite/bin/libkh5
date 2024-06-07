@@ -1,0 +1,924 @@
+##
+#
+#  Custom logging code/constants for the hacks
+#
+#  $Id: libkh5 19277 2023-10-30 23:34:16Z NiLuJe $
+#
+#  kate: syntax bash;
+#  shellcheck shell=sh
+#
+##
+
+# Pull some helper functions for logging
+_FUNCTIONS=/etc/upstart/functions
+[ -f ${_FUNCTIONS} ] && . ${_FUNCTIONS}
+
+## Some constants
+LINKFONTS_BASEDIR="/mnt/us/linkfonts"
+LINKFONTS_CONFDIR="${LINKFONTS_BASEDIR}/etc"
+LINKFONTS_BINDIR="${LINKFONTS_BASEDIR}/bin"
+FONTCONFIG_HELPER="${LINKFONTS_BINDIR}/update-fontconfig"
+
+
+LINKSS_BASEDIR="/mnt/us/linkss"
+LINKSS_BINDIR="${LINKSS_BASEDIR}/bin"
+LINKSS_SHUFFLE="${LINKSS_BINDIR}/shuffless"
+LINKSS_COVER_EXTRACT="${LINKSS_BINDIR}/cover-extract"
+TOUCH_SCREEN_SIZE="600x800"
+PW_SCREEN_SIZE="758x1024"
+KV_SCREEN_SIZE="1072x1448"
+KOA2_SCREEN_SIZE="1264x1680"
+PW5_SCREEN_SIZE="1236x1648"
+KT5_SCREEN_SIZE="1072x1448"
+KS_SCREEN_SIZE="1860x2480"
+# And our actual screen size... We need to do a model check, because upstart/functions is not accurate on the PW (at least on 5.2.0)...
+# NOTE: An alternate way to do this would be to check the screen dpi via devcap:
+# [ "$(devcap-get-feature -i screen dpi)" == "212" ] && IS_PW="true"
+# Or, for now at least, the presence of a frontlight:
+# [ "$(devcap-get-feature -a frontlight)" == "1" ] && IS_PW="true"
+# We need the devcap daemon, though. AFAICT, it's up fairly early, so that should work, but, still ;).
+IS_TOUCH="false"
+IS_PW="false"
+IS_PW2="false"
+IS_KV="false"
+IS_KT2="false"
+IS_PW3="false"
+IS_KOA="false"
+IS_KT3="false"
+IS_KOA2="false"
+IS_PW4="false"
+IS_KT4="false"
+IS_KOA3="false"
+IS_PW5="false"
+IS_KT5="false"
+IS_KS="false"
+kmfc="$(cut -c1 /proc/usid)"
+if [ "${kmfc}" == "B" ] || [ "${kmfc}" == "9" ] ; then
+    # Older device ID scheme
+    kmodel="$(cut -c3-4 /proc/usid)"
+    case "${kmodel}" in
+        "24" | "1B" | "1D" | "1F" | "1C" | "20" )
+            # PaperWhite...
+            IS_PW="true"
+        ;;
+        "D4" | "5A" | "D5" | "D6" | "D7" | "D8" | "F2" | "17" | "60" | "F4" | "F9" | "62" | "61" | "5F" )
+            # PaperWhite 2...
+            IS_PW="true"
+            IS_PW2="true"
+        ;;
+        "13" | "54" | "2A" | "4F" | "52" | "53" )
+            # Voyage...
+            IS_KV="true"
+        ;;
+        "C6" | "DD" )
+            # KT2...
+            IS_TOUCH="true"
+            IS_KT2="true"
+        ;;
+        "0F" | "11" | "10" | "12" )
+            # Touch
+            IS_TOUCH="true"
+        ;;
+        * )
+            # Fallback... We shouldn't ever hit that.
+            IS_TOUCH="true"
+        ;;
+    esac
+else
+    # Try the new device ID scheme...
+    kmodel="$(cut -c4-6 /proc/usid)"
+    case "${kmodel}" in
+        "0G1" | "0G2" | "0G4" | "0G5" | "0G6" | "0G7" | "0KB" | "0KC" | "0KD" | "0KE" | "0KF" | "0KG" | "0LK" | "0LL" )
+            # PW3...
+            IS_PW3="true"
+        ;;
+        "0GC" | "0GD" | "0GR" | "0GS" | "0GT" | "0GU" )
+            # Oasis...
+            IS_KOA="true"
+        ;;
+        "0DU" | "0K9" | "0KA" )
+            # KT3...
+            IS_KT3="true"
+        ;;
+        "0LM" | "0LN" | "0LP" | "0LQ" | "0P1" | "0P2" | "0P6" | "0P7" | "0P8" | "0S1" | "0S2" | "0S3" | "0S4" | "0S7" | "0SA" )
+            # KOA2...
+            IS_KOA2="true"
+        ;;
+        "0PP" | "0T1" | "0T2" | "0T3" | "0T4" | "0T5" | "0T6" | "0T7" | "0TJ" | "0TK" | "0TL" | "0TM" | "0TN" | "102" | "103" | "16Q" | "16R" | "16S" | "16T" | "16U" | "16V" )
+            # PW4...
+            IS_PW4="true"
+        ;;
+        "10L" | "0WF" | "0WG" | "0WH" | "0WJ" | "0VB" )
+            # KT4...
+            IS_KT4="true"
+        ;;
+        "11L" | "0WQ" | "0WP" | "0WN" | "0WM" | "0WL" )
+            # KOA3...
+            IS_KOA3="true"
+        ;;
+        "1LG" | "1Q0" | "1PX" | "1VD" | "219" | "21A" | "2BH" | "2BJ" | "2DK" )
+            # PW5...
+            IS_PW5="true"
+        ;;
+        "22D" | "25T" | "23A" | "2AQ" | "2AP" | "1XH" | "22C" )
+            # KT5...
+            IS_KT5="true"
+        ;;
+        "27J" | "2BL" | "263" | "227" | "2BM" | "23L" | "23M" | "270" )
+            # KS...
+            IS_KS="true"
+        ;;
+        * )
+            # Fallback... We shouldn't ever hit that.
+            IS_TOUCH="true"
+        ;;
+    esac
+fi
+# Now use the right constants for our model...
+if [ "${IS_KV}" == "true" -o "${IS_PW3}" == "true" -o "${IS_KOA}" == "true" -o "${IS_PW4}" == "true" ] ; then
+    SCREEN_X_RES=1088    # NOTE: Yes, 1088, not 1072 or 1080...
+    SCREEN_Y_RES=1448
+    EIPS_X_RES=16        # Manually measured, should be accurate.
+    EIPS_Y_RES=24        # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${KV_SCREEN_SIZE}"
+elif [ "${IS_PW}" == "true" ] ; then
+    SCREEN_X_RES=768     # NOTE: Yep, 768, not a typo...
+    SCREEN_Y_RES=1024
+    EIPS_X_RES=16        # Manually measured, should be accurate.
+    EIPS_Y_RES=24        # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${PW_SCREEN_SIZE}"
+elif [ "${IS_KT2}" == "true" -o "${IS_KT3}" == "true" -o "${IS_KT4}" == "true" ] ; then
+    SCREEN_X_RES=608
+    SCREEN_Y_RES=800
+    EIPS_X_RES=16       # Manually measured, should be accurate.
+    EIPS_Y_RES=24       # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${TOUCH_SCREEN_SIZE}"
+elif [ "${IS_KOA2}" == "true" -o "${IS_KOA3}" == "true" ] ; then
+    SCREEN_X_RES=1280	# NOTE: Yep, line_length/xres_virtual, not xres (1264)
+    SCREEN_Y_RES=1680
+    EIPS_X_RES=16       # Manually measured, should be accurate.
+    EIPS_Y_RES=24       # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${KOA2_SCREEN_SIZE}"
+elif [ "${IS_PW5}" == "true" ] ; then
+    SCREEN_X_RES=1236
+    SCREEN_Y_RES=1648
+    EIPS_X_RES=16       # Manually measured, should be accurate.
+    EIPS_Y_RES=24       # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${PW5_SCREEN_SIZE}"
+elif [ "${IS_KT5}" == "true" ] ; then
+    SCREEN_X_RES=1072
+    SCREEN_Y_RES=1448
+    EIPS_X_RES=16       # Manually measured, should be accurate.
+    EIPS_Y_RES=24       # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${KT5_SCREEN_SIZE}"
+elif [ "${IS_KS}" == "true" ] ; then
+    SCREEN_X_RES=1860
+    SCREEN_Y_RES=2480
+    EIPS_X_RES=16       # Manually measured, should be accurate.
+    EIPS_Y_RES=24       # Manually measured, should be accurate.
+    MY_SCREEN_SIZE="${KS_SCREEN_SIZE}"
+else
+    SCREEN_X_RES=600     # _v_width @ upstart/functions
+    SCREEN_Y_RES=800     # _v_height @ upstart/functions
+    EIPS_X_RES=12        # from f_puts @ upstart/functions
+    EIPS_Y_RES=20        # from f_puts @ upstart/functions
+    MY_SCREEN_SIZE="${TOUCH_SCREEN_SIZE}"
+fi
+EIPS_MAXCHARS="$((${SCREEN_X_RES} / ${EIPS_X_RES}))"
+EIPS_MAXLINES="$((${SCREEN_Y_RES} / ${EIPS_Y_RES}))"
+
+# USB watchdog lock file. It needs to be outside of the userstore, because vfat doesn't handle hardlinks, and we need hardlinks for atomic locking.
+USBWD_LOCK_DIR="/var/local/run"
+USBWD_LOCK_FILE="${USBWD_LOCK_DIR}/usbwd.lock"
+
+USBNET_BASEDIR="/mnt/us/usbnet"
+USBNET_BINDIR="${USBNET_BASEDIR}/bin"
+USBNET_IFCONFIG="${USBNET_BASEDIR}/etc/config"
+
+USBNETLITE_BASEDIR="/mnt/us/usbnetlite"
+USBNETLITE_BINDIR="${USBNETLITE_BASEDIR}/bin"
+USBNETLITE_IFCONFIG="${USBNETLITE_BASEDIR}/etc/config"
+
+SSH_DAEMON="/usr/bin/dropbear"
+REAL_SSH_DAEMON="/mnt/us/usbnetlite/bin/dropbearmulti"
+OPENSSH_DAEMON="/usr/sbin/sshd"
+REAL_OPENSSH_DAEMON="/mnt/us/usbnet/sbin/sshd"
+SSH_PID="${USBNETLITE_BASEDIR}/run/sshd.pid"
+SSH_DAEMON_OPTS="-P ${SSH_PID} -K 15"
+TELNET_DAEMON="${USBNET_BINDIR}/busybox"
+TELNET_DAEMON_OPTS="telnetd -F"
+TELNET_PID="${USBNET_BASEDIR}/run/telnetd.pid"
+
+
+## And some more hack-specific constants
+KH_HACK_BASEDIR="/mnt/us/${KH_HACKNAME}"
+KH_HACK_BINDIR="${KH_HACK_BASEDIR}/bin"
+WATCHDOG_PID="${KH_HACK_BASEDIR}/run/usb-watchdog.pid"
+USBWD_REBOOT_FILE="${KH_HACK_BASEDIR}/reboot"
+WATCHDOG_DAEMON="${KH_HACK_BINDIR}/usb-watchdog"
+WATCHDOG_HELPER="${KH_HACK_BINDIR}/usb-watchdog-helper"
+USBWD_LOCK_BIN="${KH_HACK_BINDIR}/shlock"
+
+# tmpfs paths for ScreenSavers
+LINKSS_TMPFS_BASEDIR="/var/linkss"
+LINKSS_TMPFS_CACHE="${LINKSS_TMPFS_BASEDIR}/cache"
+LINKSS_TMPFS_COVERDIR="${LINKSS_TMPFS_BASEDIR}/cover"
+LINKSS_BASEDIR_BASE="/mnt/base-us/linkss"
+
+# varlocal paths for Fonts
+LINKFONTS_LOCAL_BASEDIR="/var/local/linkfonts"
+LINKFONTS_LOCAL_LIBDIR="${LINKFONTS_LOCAL_BASEDIR}/lib"
+
+# Cover watchdog for ScreenSavers
+COVERWD_LOCK_DIR="/var/local/run"
+COVERWD_LOCK_FILE="${COVERWD_LOCK_DIR}/coverwd.lock"
+COVER_WATCHDOG_PID="${KH_HACK_BASEDIR}/run/cover-watchdog.pid"
+COVER_WATCHDOG_DAEMON="${KH_HACK_BINDIR}/cover-watchdog"
+COVER_WATCHDOG_HELPER="${KH_HACK_BINDIR}/cover-watchdog-helper"
+COVERWD_LOCK_BIN="${KH_HACK_BINDIR}/shlock"
+
+# Python
+PYTHON_BASEDIR="/mnt/us/python"
+PYTHON_BINDIR="${PYTHON_BASEDIR}/bin"
+PYTHON="${PYTHON_BINDIR}/python2.7"
+
+
+# Check if arg is an int
+is_integer()
+{
+    # Cheap trick ;)
+    [ "${1}" -eq "${1}" ] 2>/dev/null
+    return $?
+}
+
+## Check if we have an FBInk binary available somewhere...
+# Default to something that won't horribly blow up...
+FBINK_BIN="true"
+for my_hackdir in linkss linkfonts libkh usbnet ; do
+    my_fbink="/mnt/us/${my_hackdir}/bin/fbink"
+    if [ -x "${my_fbink}" ] ; then
+        FBINK_BIN="${my_fbink}"
+        # Got it!
+        break
+    fi
+done
+kh_has_fbink()
+{
+    # Because the fallback is the "true" binary/shell built-in ;).
+    if [ "${FBINK_BIN}" != "true" ] ; then
+        # Got it!
+        return 0
+    fi
+
+    # If we got this far, we don't have fbink installed
+    return 1
+}
+
+## Print something on the bottom of the screen via FBInk
+# Arg 1 is the string to print
+fbink_prev_line_offset="0"
+kh_fbink_print()
+{
+    # We need at least one arg
+    if [ $# -lt 1 ] ; then
+        f_log W ${KH_HACKNAME} libkh5 "" "not enough arguments passed to kh_fbink_print ($# while we need at least 1)"
+        return
+    fi
+
+    kh_eips_string="${1}"
+
+    # Unlike eips, we need at least a single space to even try to print something ;).
+    if [ "${kh_eips_string}" == "" ] ; then
+        kh_eips_string=" "
+    fi
+
+    # Support printing over 3 different lines before wrapping back to the baseline...
+    fbink_row="$(( -4 + ${fbink_prev_line_offset} ))"
+    # If we're printing on the baseline, blank the two extra lines,
+    # plus the final line in case we had a previous multi-line print,
+    # to potentially clear stale lines from another libkh instance...
+    if [ ${fbink_row} -eq -4 ] ; then
+        ${FBINK_BIN} -qpmL -y -3 " "  " "  " "
+    fi
+    # Handle the wraparound
+    if [ ${fbink_row} -ge -1 ] ; then
+        # Back to baseline!
+        fbink_row="-4"
+        fbink_prev_line_offset="0"
+        # And strike the extra lines to make it clear we wrapped...
+        ${FBINK_BIN} -qpmhL -y -3 " "  " "  " "
+    fi
+
+    # And just print it, FBInk will take care of the rest!
+    # We just have to slurp the output to remember how many lines we just printed...
+    fbink_line_count="$(${FBINK_BIN} -qpml -y ${fbink_row} "${kh_eips_string}")"
+    # Sanity check just in case something goes horribly wrong...
+    is_integer "${fbink_line_count}" || STEPCOUNT=0
+
+    # And increment our offset...
+    let "fbink_prev_line_offset+=fbink_line_count"
+}
+
+## Print something on the bottom of the screen via eips
+# Arg 1 is the string to print
+kh_prev_line_offset="0"
+kh_eips_print()
+{
+    # We need at least one arg
+    if [ $# -lt 1 ] ; then
+        f_log W ${KH_HACKNAME} libkh5 "" "not enough arguments passed to kh_eips_print ($# while we need at least 1)"
+        return
+    fi
+
+    kh_eips_string="${1}"
+
+    # If our string exceeds the column length, split it into as many lines as necessary...
+    # Subtract the edge blocks, since, depending on the device, they might be half-hidden behind the bezel
+    kh_maxlen="$(( ${EIPS_MAXCHARS} - 2 ))"
+    kh_str_start="0"
+    kh_line_offset="$(( ${#kh_eips_string} / ${kh_maxlen} ))"
+    kh_full_eips_string="${kh_eips_string}"
+
+    # Start by checking if we need to clear a previous multiline print...
+    while [ ${kh_prev_line_offset} -ge 1 ] ; do
+        # Build a blank line
+        kh_str_line=""
+        while [ ${#kh_str_line} -lt ${EIPS_MAXCHARS} ] ; do
+            kh_str_line="${kh_str_line} "
+        done
+
+        # Print it
+        eips 0 $((${EIPS_MAXLINES} - ( 2 + ${kh_prev_line_offset} ) )) "${kh_str_line}" >/dev/null
+        # Switch to the next line
+        let "kh_prev_line_offset-=1"
+    done
+    # And now remember the line offset for this print if it's multiline, so we can do that the next time...
+    if [ ${#kh_eips_string} -gt ${kh_maxlen} ] ; then
+        kh_prev_line_offset="${kh_line_offset}"
+    else
+        kh_prev_line_offset="0"
+    fi
+
+    # And now handle the line splitting...
+    while [ ${#kh_eips_string} -gt ${kh_maxlen} ] ; do
+        # Extract our current line
+        kh_str_line="${kh_full_eips_string:${kh_str_start}:${kh_maxlen}}"
+        # Update our start pointer
+        kh_str_start="$(( ${kh_str_start} + ${kh_maxlen} ))"
+
+        # Quick'n dirty hyphenation...
+        # See if last char of line & first char of next line are both letters,
+        # in which case do the right padding with an hyphen and not a space.
+        kh_hyphen_test_str="${kh_full_eips_string:$(( ${kh_str_start} - 1 )):2}"
+        # Use a dirty trick to use something that supports character classes, but doesn't fork ;).
+        if [ -z "${kh_hyphen_test_str//[a-zA-Z]/}" ] ; then
+            # We'll necessarily be the last char of the line, so we don't need to do any fancy checks on that front.
+            kh_str_line="${kh_str_line}-"
+        fi
+
+        # Pad it... Left...
+        kh_str_line=" ${kh_str_line}"
+        # ... and Right
+        while [ ${#kh_str_line} -lt ${EIPS_MAXCHARS} ] ; do
+            kh_str_line="${kh_str_line} "
+        done
+
+        # Print it
+        eips 0 $((${EIPS_MAXLINES} - ( 2 + ${kh_line_offset} ) )) "${kh_str_line}" >/dev/null
+        # Switch to the next line
+        let "kh_line_offset-=1"
+
+        # Consume the base string to keep looping
+        kh_eips_string="${kh_full_eips_string:${kh_str_start}}"
+    done
+
+    # Add a leading whitespace to avoid starting right at the left edge of the screen...
+    kh_eips_string=" ${kh_eips_string}"
+
+    # Since eips doesn't trigger a full refresh, we'll have to pad our string with blank spaces to make sure two consecutive messages don't run into each other.
+    while [ ${#kh_eips_string} -lt ${EIPS_MAXCHARS} ] ; do
+        kh_eips_string="${kh_eips_string} "
+    done
+
+    # And finally, show our formatted message on the bottom of the screen (NOTE: Redirect to /dev/null to kill unavailable character & pixel not in range warning messages)
+    eips 0 $((${EIPS_MAXLINES} - 2)) "${kh_eips_string}" >/dev/null
+
+    # NOTE: For some reason (probably relating to the state of the eInk controller), when eips is triggered during a reboot/shutdown/update runlevel (ie. when stopping stuff),
+    # only the last message will be shown, and that only after a time (when the eInk controller changes state?), to the point that you might see the last message (usually usbnet) at the
+    # beginning of the boot process when rebooting!
+}
+
+## Custom logging
+# Arg 1 is logging message
+# Arg 2 is logging level
+# Arg 3 is eips/fbink logging status (quiet|verbose|auto)
+# Arg 4 is eips/fbink message
+##
+kh_msg()
+{
+    # We need at least two args
+    if [ $# -lt 2 ] ; then
+        f_log W ${KH_HACKNAME} libkh5 "" "not enough arguments passed to kh_msg ($# while we need at least 2)"
+        return
+    fi
+
+    kh_msg_string="${1}"
+    kh_loglvl="${2}"
+
+    # Check if we want to trigger an additionnal eips print
+    case "${3}" in
+        "q" | "Q" )
+            kh_show_eips="false"
+        ;;
+        "v" | "V" )
+            kh_show_eips="true"
+        ;;
+        * )
+            # Only show if we find the verbose trigger file for this hack
+            if [ -f "${KH_HACK_BASEDIR}/verbose" ] ; then
+                kh_show_eips="true"
+            else
+                kh_show_eips="false"
+            fi
+        ;;
+    esac
+
+    # If we have a fourth argument, use it as a specific string to pass to eips, else use the same as f_log
+    if [ -n "${4}" ] ; then
+        kh_eips_string="${4}"
+    else
+        kh_eips_string="${kh_msg_string}"
+    fi
+
+    # Print to log
+    f_log ${kh_loglvl} ${KH_HACKNAME} kh_msg "" "${kh_msg_string}"
+
+    # Do we want to trigger an eips print?
+    if [ "${kh_show_eips}" == "true" ] ; then
+        # Detect from which hack we've been called, we'll use it to tag our message
+        case "${KH_HACKNAME}" in
+            "linkss" )
+                kh_eips_tag="S"
+            ;;
+            "linkfonts" )
+                kh_eips_tag="F"
+            ;;
+            "usbnet" )
+                kh_eips_tag="N"
+            ;;
+            "linkjail" )
+                kh_eips_tag="J"
+            ;;
+            * )
+                # Huh, shouldn't happen, but log it anyway.
+                f_log W ${KH_HACKNAME} libkh5 "" "couldn't detect which eips tag to use for hack '${KH_HACKNAME}'"
+                kh_eips_tag="U"
+            ;;
+        esac
+
+        # If loglevel is anything else than I, add it to our tag
+        if [ "${kh_loglvl}" != "I" ] ; then
+            kh_eips_tag="${kh_eips_tag} ${kh_loglvl}"
+        fi
+
+        # Tag our message
+        kh_eips_string="${kh_eips_tag} ${kh_eips_string}"
+
+        # Can we use FBInk?
+        if kh_has_fbink ; then
+            kh_fbink_print "${kh_eips_string}"
+        else
+            kh_eips_print "${kh_eips_string}"
+        fi
+    fi
+}
+
+## Fatal error logging
+kh_die()
+{
+    # We need at least two args
+    if [ $# -lt 1 ] ; then
+        f_log W ${KH_HACKNAME} libkh5 "" "not enough arguments passed to kh_die ($# while we need at least 1)"
+        return
+    fi
+
+    kh_msg "${1}" W "${2}" "${3}"
+    exit 0
+}
+
+
+# The great version check!
+# Init everything...
+IS_K1="false"
+IS_K2="false"
+K2_ATLEAST_20="false"
+K2_ATLEAST_21="false"
+K2_ATLEAST_22="false"
+K2_ATLEAST_23="false"
+K2_ATLEAST_24="false"
+K2_ATLEAST_25="false"
+IS_K3="false"
+K3_ATLEAST_30="false"
+K3_ATLEAST_31="false"
+K3_ATLEAST_32="false"
+K3_ATLEAST_33="false"
+K3_ATLEAST_34="false"
+IS_K4="false"
+K4_ATLEAST_40="false"
+K4_ATLEAST_41="false"
+IS_K5="false"
+K5_ATLEAST_50="false"
+K5_ATLEAST_51="false"
+K5_ATLEAST_52="false"
+K5_ATLEAST_53="false"
+K5_ATLEAST_54="false"
+K5_ATLEAST_55="false"
+K5_ATLEAST_56="false"
+K5_ATLEAST_57="false"
+K5_ATLEAST_58="false"
+K5_ATLEAST_59="false"
+K5_ATLEAST_510="false"
+K5_ATLEAST_511="false"
+K5_ATLEAST_512="false"
+K5_ATLEAST_513="false"
+K5_ATLEAST_514="false"
+K5_ATLEAST_515="false"
+K5_ATLEAST_516="false"
+
+kpver="$(grep '^Kindle [2345]' /etc/prettyversion.txt 2>&1)"
+if [ $? -ne 0 ] ; then
+    kh_msg "couldn't detect the kindle major version!" W q
+    # Try to at least get the model...
+    kmfc="$(cut -c1 /proc/usid)"
+    if [ $? -ne 0 ] ; then
+        kh_msg "couldn't detect the kindle model!" W q
+    else
+        if [ "${kmfc}" == "B" ] || [ "${kmfc}" == "9" ] ; then
+            kmodel="$(cut -c3-4 /proc/usid)"
+            case "${kmodel}" in
+                "01" )
+                    IS_K1="true"
+                ;;
+                "02" | "03" | "04" | "05" | "09" )
+                    IS_K2="true"
+                ;;
+                "08" | "06" | "0A" )
+                    IS_K3="true"
+                ;;
+                "0E" | "23" )
+                    IS_K4="true"
+                ;;
+                "0F" | "11" | "10" | "12" | "24" | "1B" | "1D" | "1F" | "1C" | "20" | "D4" | "5A" | "D5" | "D6" | "D7" | "D8" | "F2" | "17" | "60" | "F4" | "F9" | "62" | "61" | "5F" | "C6" | "DD" | "13" | "54" | "2A" | "4F" | "52" | "53" )
+                    IS_K5="true"
+                ;;
+                * )
+                    kh_msg "unknown older kindle model (${kmodel})!" W q
+                ;;
+            esac
+        else
+                # Try the new device ID scheme...
+                kmodel="$(cut -c4-6 /proc/usid)"
+                case "${kmodel}" in
+                    "0G1" | "0G2" | "0G4" | "0G5" | "0G6" | "0G7" | "0KB" | "0KC" | "0KD" | "0KE" | "0KF" | "0KG" | "0LK" | "0LL" | "0GC" | "0GD" | "0GR" | "0GS" | "0GT" | "0GU" | "0DU" | "0K9" | "0KA" | "0LM" | "0LN" | "0LP" | "0LQ" | "0P1" | "0P2" | "0P6" | "0P7" | "0P8" | "0S1" | "0S2" | "0S3" | "0S4" | "0S7" | "0SA" | "0PP" | "0T1" | "0T2" | "0T3" | "0T4" | "0T5" | "0T6" | "0T7" | "0TJ" | "0TK" | "0TL" | "0TM" | "0TN" | "102" | "103" | "16Q" | "16R" | "16S" | "16T" | "16U" | "16V" | "10L" | "0WF" | "0WG" | "0WH" | "0WJ" | "0VB" | "11L" | "0WQ" | "0WP" | "0WN" | "0WM" | "0WL" | "1LG" | "1Q0" | "1PX" | "1VD" | "219" | "21A" | "2BH" | "2BJ" | "2DK" | "22D" | "25T" | "23A" | "2AQ" | "2AP" | "1XH" | "22C" | "27J" | "2BL" | "263" | "227" | "2BM" | "23L" | "23M" | "270" )
+                        IS_K5="true"
+                    ;;
+                    * )
+                        kh_msg "unknown kindle model (${kmodel})!" W q
+                    ;;
+                esac
+        fi
+     fi
+else
+    # Weeee, the great case switch!
+    khver="$(echo ${kpver} | sed -n -r 's/^(Kindle)([[:blank:]]*)([[:digit:].]*)(.*?)$/\3/p')"
+    case "${khver}" in
+        2.0.* | 2.0 )
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+        ;;
+        2.1.* | 2.1 )
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+            K2_ATLEAST_21="true"
+        ;;
+        2.2.* | 2.2 )
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+            K2_ATLEAST_21="true"
+            K2_ATLEAST_22="true"
+        ;;
+        2.3.* | 2.3 )
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+            K2_ATLEAST_21="true"
+            K2_ATLEAST_22="true"
+            K2_ATLEAST_23="true"
+        ;;
+        2.4.* | 2.4 )
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+            K2_ATLEAST_21="true"
+            K2_ATLEAST_22="true"
+            K2_ATLEAST_23="true"
+            K2_ATLEAST_24="true"
+        ;;
+        2.5.* | 2.5 )
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+            K2_ATLEAST_21="true"
+            K2_ATLEAST_22="true"
+            K2_ATLEAST_23="true"
+            K2_ATLEAST_24="true"
+            K2_ATLEAST_25="true"
+        ;;
+        2.* )
+            # Assume newer, to ensure forward compat
+            IS_K2="true"
+            K2_ATLEAST_20="true"
+            K2_ATLEAST_21="true"
+            K2_ATLEAST_22="true"
+            K2_ATLEAST_23="true"
+            K2_ATLEAST_24="true"
+            K2_ATLEAST_25="true"
+        ;;
+        3.0.* | 3.0 )
+            IS_K3="true"
+            K3_ATLEAST_30="true"
+        ;;
+        3.1.* | 3.1 )
+            IS_K3="true"
+            K3_ATLEAST_30="true"
+            K3_ATLEAST_31="true"
+        ;;
+        3.2.* | 3.2 )
+            IS_K3="true"
+            K3_ATLEAST_30="true"
+            K3_ATLEAST_31="true"
+            K3_ATLEAST_32="true"
+        ;;
+        3.3.* | 3.3 )
+            IS_K3="true"
+            K3_ATLEAST_30="true"
+            K3_ATLEAST_31="true"
+            K3_ATLEAST_32="true"
+            K3_ATLEAST_33="true"
+        ;;
+        3.4.* | 3.4 )
+            IS_K3="true"
+            K3_ATLEAST_30="true"
+            K3_ATLEAST_31="true"
+            K3_ATLEAST_32="true"
+            K3_ATLEAST_33="true"
+            K3_ATLEAST_34="true"
+        ;;
+        3.* )
+            IS_K3="true"
+            K3_ATLEAST_30="true"
+            K3_ATLEAST_31="true"
+            K3_ATLEAST_32="true"
+            K3_ATLEAST_33="true"
+            K3_ATLEAST_34="true"
+        ;;
+        4.0.* | 4.0 )
+            IS_K4="true"
+            K4_ATLEAST_40="true"
+        ;;
+        4.1.* | 4.1 )
+            IS_K4="true"
+            K4_ATLEAST_40="true"
+            K4_ATLEAST_41="true"
+        ;;
+        4.* )
+            IS_K4="true"
+            K4_ATLEAST_40="true"
+            K4_ATLEAST_41="true"
+        ;;
+        5.0.* | 5.0 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+        ;;
+        5.1.* | 5.1 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+        ;;
+        5.2.* | 5.2 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+        ;;
+        5.3.* | 5.3 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+        ;;
+        5.4.* | 5.4 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+        ;;
+        5.5.* | 5.5 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+        ;;
+        5.6.* | 5.6 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+        ;;
+        5.7.* | 5.7 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+        ;;
+        5.8.* | 5.8 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+        ;;
+        5.9.* | 5.9 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+        ;;
+        5.10.* | 5.10 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+        ;;
+        5.11.* | 5.11 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+        ;;
+        5.12.* | 5.12 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+            K5_ATLEAST_512="true"
+        ;;
+        5.13.* | 5.13 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+            K5_ATLEAST_512="true"
+            K5_ATLEAST_513="true"
+        ;;
+        5.14.* | 5.14 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+            K5_ATLEAST_512="true"
+            K5_ATLEAST_513="true"
+            K5_ATLEAST_514="true"
+        ;;
+        5.15.* | 5.15 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+            K5_ATLEAST_512="true"
+            K5_ATLEAST_513="true"
+            K5_ATLEAST_514="true"
+            K5_ATLEAST_515="true"
+        ;;
+        5.16.* | 5.16 )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+            K5_ATLEAST_512="true"
+            K5_ATLEAST_513="true"
+            K5_ATLEAST_514="true"
+            K5_ATLEAST_515="true"
+            K5_ATLEAST_516="true"
+        ;;
+        5.* )
+            IS_K5="true"
+            K5_ATLEAST_50="true"
+            K5_ATLEAST_51="true"
+            K5_ATLEAST_52="true"
+            K5_ATLEAST_53="true"
+            K5_ATLEAST_54="true"
+            K5_ATLEAST_55="true"
+            K5_ATLEAST_56="true"
+            K5_ATLEAST_57="true"
+            K5_ATLEAST_58="true"
+            K5_ATLEAST_59="true"
+            K5_ATLEAST_510="true"
+            K5_ATLEAST_511="true"
+            K5_ATLEAST_512="true"
+            K5_ATLEAST_513="true"
+            K5_ATLEAST_514="true"
+            K5_ATLEAST_515="true"
+            K5_ATLEAST_516="true"
+        ;;
+        * )
+            kh_msg "couldn't detect the kindle version!" W q
+        ;;
+    esac
+fi
