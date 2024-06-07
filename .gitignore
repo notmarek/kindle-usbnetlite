@@ -1,3 +1,2 @@
 build
-.config_*_stamp
-.db_server
+.*_stamp
