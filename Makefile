@@ -38,6 +38,7 @@ SVR_CFLAGS += $(CFLAGS)
 CONFIG_DROPBEAR_STAMP=.config_dropbear_stamp
 PATCH_DROPBEAR_STAMP=.patch_dropbear_stamp
 CONFIG_SFTP_STAMP=.config_sftp_stamp
+CONFIG_XZDEC_STAMP=.config_xz_stamp
 CONFIG_OPTIONS=--disable-syslog --disable-pam --disable-shadow
 OPENSSH_CONFIG_OPTIONS=--without-openssl
 
@@ -57,8 +58,13 @@ $(CONFIG_SFTP_STAMP):
 	sed -i 's/-fzero-call-used-regs=used//g' openssh/openbsd-compat/Makefile
 	touch $@
 
+$(CONFIG_XZDEC_STAMP):
+	cd xz && autoreconf && \
+	./configure --host ${CROSS_TC} --enable-static --disable-debug --disable-dependency-tracking --disable-silent-rules --disable-shared --disable-nls --disable-xz --disable-lzmadec --disable-lzmainfo --disable-microlzma
+	touch $@
 
-multi: $(CONFIG_DROPBEAR_STAMP) sftp-server
+
+multi: $(CONFIG_DROPBEAR_STAMP) sftp-server xzdec
 	mkdir -p build
 	make $(JOBSFLAGS) -C dropbear PROGRAMS="dropbear dbclient scp" MULTI=1 
 	$(STRIP) dropbear/dropbearmulti
@@ -71,9 +77,16 @@ sftp-server: $(CONFIG_SFTP_STAMP)
 	$(STRIP) openssh/sftp-server
 	cp openssh/sftp-server ./build
 
+xzdec: $(CONFIG_XZDEC_STAMP)
+	mkdir -p build
+	make $(JOBSFLAGS) -C xz
+	$(STRIP) xz/src/xzdec/xzdec
+	cp xz/src/xzdec/xzdec ./build
+
 clean:
 	-rm -rf $(PATCH_DROPBEAR_STAMP) $(CONFIG_DROPBEAR_STAMP) $(CONFIG_SFTP_STAMP) build
 	make -C dropbear distclean
 	cd dropbear && git reset --hard
 	make -C openssh clean
+	make -C xz clean
 
