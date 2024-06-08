@@ -70,7 +70,7 @@ fi
 
 otautils_update_progressbar
 
-cd src
+cd build/mntus_package
 # Make a copy of the default config...
 cp -f usbnetlite/etc/config usbnetlite/etc/config.default
 # And now we filter the content to preserve user's custom content
@@ -88,7 +88,7 @@ if [ ${_RET} -ne 0 ] ; then
     return 1
 fi
 cd - >/dev/null
-rm -rf src
+rm -rf build
 
 otautils_update_progressbar
 
