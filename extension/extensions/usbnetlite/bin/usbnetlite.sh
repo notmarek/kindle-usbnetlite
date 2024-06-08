@@ -525,49 +525,10 @@ case "${1}" in
 	"disable_auto" )
 		${1}
 	;;
-	"enable_verbose" )
-		${1}
-	;;
-	"disable_verbose" )
-		${1}
-	;;
-	"enable_uninstall" )
-		${1}
-	;;
-	"disable_uninstall" )
-		${1}
-	;;
 	"enable_wifi" )
 		${1}
 	;;
 	"disable_wifi" )
-		${1}
-	;;
-	"enable_sshd_only" )
-		${1}
-	;;
-	"disable_sshd_only" )
-		${1}
-	;;
-	"use_dropbear" )
-		${1}
-	;;
-	"quiet_dropbear" )
-		${1}
-	;;
-	"verbose_dropbear" )
-		${1}
-	;;
-	"tweak_mac" )
-		${1}
-	;;
-	"default_mac" )
-		${1}
-	;;
-	"use_volumd" )
-		${1}
-	;;
-	"dont_use_volumd" )
 		${1}
 	;;
 	"restore_config" )

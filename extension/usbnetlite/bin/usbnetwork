@@ -89,6 +89,7 @@ if [ -z "${PORT}" ] ; then
 fi
 
 
+SSH_DAEMON_OPTS="${SSH_DAEMON_OPTS} -R" # Auto gen keys
 SSH_DAEMON_OPTS="${SSH_DAEMON_OPTS} -H /mnt/us" # set the homedir to the userstore 
 SSH_DAEMON_OPTS="${SSH_DAEMON_OPTS} -p ${PORT}" # and bind to the specified port
 

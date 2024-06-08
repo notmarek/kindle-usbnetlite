@@ -15,6 +15,7 @@ mkdir -p out
 mkdir -p build/mntus_package
 cp -r extension/extensions build/mntus_package
 cp -r extension/${HACKNAME} build/mntus_package
+echo "USBNETLite ${VERSION}-r${COMMIT}" > build/mntus_package/${HACKNAME}/etc/VERSION
 
 mv build/dropbearmulti build/mntus_package/${HACKNAME}/bin
 mv build/sftp-server build/mntus_package/${HACKNAME}/bin
