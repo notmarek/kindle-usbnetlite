@@ -4,3 +4,6 @@
 [submodule "openssh"]
 	path = openssh
 	url = https://github.com/openssh/openssh-portable
+[submodule "xz"]
+	path = xz
+	url = https://github.com/tukaani-project/xz
