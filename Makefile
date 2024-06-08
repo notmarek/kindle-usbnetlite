@@ -84,7 +84,7 @@ xzdec: $(CONFIG_XZDEC_STAMP)
 	cp xz/src/xzdec/xzdec ./build
 
 clean:
-	-rm -rf $(PATCH_DROPBEAR_STAMP) $(CONFIG_DROPBEAR_STAMP) $(CONFIG_SFTP_STAMP) build
+	-rm -rf $(PATCH_DROPBEAR_STAMP) $(CONFIG_DROPBEAR_STAMP) $(CONFIG_SFTP_STAMP) $(CONFIG_XZDEC_STAMP) build
 	make -C dropbear distclean || true
 	cd dropbear && git reset --hard || true
 	make -C openssh clean || true
