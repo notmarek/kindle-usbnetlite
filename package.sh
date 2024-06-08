@@ -31,6 +31,7 @@ tar --hard-dereference --owner root --group root --exclude-vcs -cvf ./out/${HACK
 xz ./out/${HACKNAME}.tar
 
 cd out
+chmod +x install.sh
 kindletool create ota2 "${KT_PM_FLAGS[@]}" -d paperwhite4 -d basic3 -d oasis3 -d paperwhite5 -d basic4 -d scribe libotautils5 install.sh ${HACKNAME}.tar.xz xzdec ${HACKNAME}-preinit.conf ${HACKNAME}.conf Update_${HACKNAME}_${VERSION}_install_khf.bin
 cd ..
 
