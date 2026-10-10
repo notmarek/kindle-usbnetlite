@@ -1,0 +1,29 @@
+#!/bin/sh
+# Installed on rootfs so USB mass-storage mode cannot hide the boot helper or its log.
+set +x
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+BASE=/mnt/us/usbnetlite
+mkdir -p /var/local/usbnetlite || exit 1
+exec > /var/local/usbnetlite/wifi-boot.log 2>&1
+printf 'BOOT_ID='; cat /proc/sys/kernel/random/boot_id
+printf 'BOOT_TRIGGER=%s\n' "${UPSTART_EVENTS:-manual}"
+date -u
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+    if [ -r "$BASE/etc/config" ] && [ -x "$BASE/bin/sshd-control" ] && [ -x "$BASE/bin/dropbearmulti" ]; then
+        [ -f "$BASE/auto" ] || { echo 'BOOT_RESULT=DISABLED'; exit 0; }
+        if ! /bin/sh "$BASE/bin/sshd-control" mode; then echo 'BOOT_RESULT=USB_MODE'; exit 0; fi
+        if [ -d /sys/class/net/wlan0 ]; then
+            # No DHCP/address wait: Dropbear binds wlan0 before it gets an address.
+            timeout -s KILL 30 /bin/sh "$BASE/bin/sshd-control" start
+            rc=$?
+            if [ "$rc" = 0 ]; then echo 'BOOT_RESULT=STARTED'; else echo 'BOOT_RESULT=FAILED'; fi
+            exit "$rc"
+        fi
+    fi
+    sleep 2
+    attempt=$((attempt + 1))
+done
+echo 'BOOT_RESULT=RESOURCES_NOT_READY'
+exit 1
