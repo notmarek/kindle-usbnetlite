@@ -72,6 +72,36 @@
 			"refresh": true,
 			"status": false,
 			"internal": "status Disable SSH over WiFi"
+		},
+		{
+			"name": "Enable Wi-Fi-only SSH (no USB switch)",
+			"action": "./bin/usbnetlite.sh",
+			"params": "enable_sshd_only",
+			"exitmenu": false,
+			"refresh": true
+		},
+		{
+			"name": "Use USB network mode (Default)",
+			"action": "./bin/usbnetlite.sh",
+			"params": "disable_sshd_only",
+			"exitmenu": false,
+			"refresh": true
+		},
+		{
+			"name": "Start Wi-Fi SSH",
+			"if": "\"/mnt/us/usbnetlite/etc/config\" \"^USE_WIFI_SSHD_ONLY=.true.$\" -g",
+			"action": "./bin/usbnetlite.sh",
+			"params": "start_wifi_sshd",
+			"exitmenu": false,
+			"refresh": true
+		},
+		{
+			"name": "Stop Wi-Fi SSH",
+			"if": "\"/mnt/us/usbnetlite/etc/config\" \"^USE_WIFI_SSHD_ONLY=.true.$\" -g",
+			"action": "./bin/usbnetlite.sh",
+			"params": "stop_wifi_sshd",
+			"exitmenu": false,
+			"refresh": true
 		}
 		]
 	}

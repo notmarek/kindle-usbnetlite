@@ -16,6 +16,9 @@ PORT="22"
 # Enable ssh over wifi
 USE_WIFI="true"
 
+# Run SSH on wlan0 without switching USB mass storage to USB networking
+USE_WIFI_SSHD_ONLY="false"
+
 TWEAK_MAC_ADDRESS="false"
 
 # Uncomment to enable faster transfers but higher memory usage

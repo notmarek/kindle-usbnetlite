@@ -28,6 +28,25 @@ if [ "$(id -u)" -ne 0 ] ; then
     exit 1
 fi
 
+# Load config...
+if [ -f "${USBNETLITE_IFCONFIG}" ] ; then
+    # dos2unix...
+    sed -e "s/$(echo -ne '\r')$//g" -i ${USBNETLITE_IFCONFIG}
+    . ${USBNETLITE_IFCONFIG}
+else
+    kh_msg "!! your usbnet config is missing, we'll use the default values" W a "missing usbnet config"
+fi
+
+# Wi-Fi-only operations must not reach the USB gadget switching path.
+if [ "${USE_WIFI_SSHD_ONLY:-false}" = "true" ]; then
+    case "${1:-toggle}" in
+        usbms) action=stop ;;
+        start|stop|status|toggle) action=${1:-toggle} ;;
+        *) kh_msg "invalid Wi-Fi SSH action" E v; exit 1 ;;
+    esac
+    exec /bin/sh "${USBNETLITE_BINDIR}/sshd-control" "$action"
+fi
+
 # FIXME: That's probably not needed anymore on the K5
 if [ "$1" == "status" ] ; then
     kh_msg "we're not using usbnetd, go away" I q
@@ -42,15 +61,6 @@ fi
 #        (based on whether the PW3 on FW 5.9 falls under the same predicament or not),
 #        and in the install script, same deal, with the additional need to check if the kernel module parameters have changed or not...
 #        Alternatively, we might be able to get the name of the right module out of a few specific keys in the elektra db.
-
-# Load config...
-if [ -f "${USBNETLITE_IFCONFIG}" ] ; then
-    # dos2unix...
-    sed -e "s/$(echo -ne '\r')$//g" -i ${USBNETLITE_IFCONFIG}
-    . ${USBNETLITE_IFCONFIG}
-else
-    kh_msg "!! your usbnet config is missing, we'll use the default values" W a "missing usbnet config"
-fi
 
 # Sanitize our user input, in case something stupid happened to the config file (like Windows...)
 # NOTE: This is obviously the fallback to default config values. Don't edit me here, that won't do a thing.

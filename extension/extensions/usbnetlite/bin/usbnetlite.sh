@@ -73,6 +73,7 @@ disable_hack_trigger_file()
 ## Check if we're in USBMS mode
 check_is_in_usbnet()
 {
+	. "${KH_HACK_BASEDIR}/etc/config"
 	if lsmod | grep -q g_ether ; then
 		kh_msg "will not edit usbnet config file in usbnet mode, switch to usbms" W v "must be in usbms mode to safely do this"
 		return 0
@@ -80,7 +81,7 @@ check_is_in_usbnet()
 
 	# Avoid touching the config while SSHD is up in wifi only mode, too
 	if [ "${USE_WIFI_SSHD_ONLY}" == "true" ] ; then
-		if [ -f "${SSH_PID}" ] ; then
+		if "${KH_HACK_BINDIR}/sshd-control" status >/dev/null 2>&1 ; then
 			kh_msg "will not edit usbnet config file while sshd is up, shut it down" W v "sshd must be down to safely do this"
 			return 0
 		fi
@@ -97,8 +98,8 @@ check_usbnet_status()
 	. "${KH_HACK_BASEDIR}/etc/config"
 
 	if [ "${USE_WIFI_SSHD_ONLY}" == "true" ] ; then
-		# Don't do anything fancier (like checking if the pid still exists), because the actual usbnetwork script doesnt ;).
-		if [ -f "${SSH_PID}" ] ; then
+		# Verify the live server; a PID file can survive a reboot.
+		if "${KH_HACK_BINDIR}/sshd-control" status >/dev/null 2>&1 ; then
 			kh_msg "wifi only, sshd should be up" I q
 			return 3
 		else
@@ -229,9 +230,13 @@ edit_hack_config()
 	kh_config_switch_name="${1}"
 	kh_config_switch_value="${2}"
 	# Sanitize user input
-	if ! grep -q "${kh_config_switch_name}" "${kh_config_file}" ; then
-		kh_msg "invalid config switch name (${kh_config_switch_name})" W v "invalid config switch"
-		return 1
+	if ! grep -q "^${kh_config_switch_name}=" "${kh_config_file}" ; then
+		if [ "${kh_config_switch_name}" = "USE_WIFI_SSHD_ONLY" ]; then
+			printf '\nUSE_WIFI_SSHD_ONLY="false"\n' >> "${kh_config_file}" || return 1
+		else
+			kh_msg "invalid config switch name (${kh_config_switch_name})" W v "invalid config switch"
+			return 1
+		fi
 	fi
 
 	# This is slightly overkill, the hack already discards the value if it's not true or false in lowercase...
@@ -255,6 +260,13 @@ edit_hack_config()
 ## Try to toggle USBNetwork
 toggle_usbnet()
 {
+	. "${KH_HACK_BASEDIR}/etc/config"
+	if [ "${USE_WIFI_SSHD_ONLY:-false}" = "true" ]; then
+		kh_msg "Toggle Wi-Fi SSH" I a
+		"${KH_HACK_BINDIR}/sshd-control" toggle
+		return $?
+	fi
+
 	# All kinds of weird stuff happens if we try to toggle USBNet while plugged in, so, well, don't do it ;)
 	if check_is_plugged_in ; then
 		return 1
@@ -304,7 +316,11 @@ enable_auto()
 {
 	enable_hack_trigger_file "auto"
 	# FIXME: Workaround broken? custom status message by using eips ourselves. Kill this once it works properly.
-	kh_msg "Boot the Kindle in USBNet mode" I a
+	if "${KH_HACK_BINDIR}/sshd-control" mode; then
+		kh_msg "Enable Wi-Fi SSH at boot" I v
+	else
+		kh_msg "Boot the Kindle in USBNet mode" I a
+	fi
 	# On legacy devices, prevent the device from shutting down when hitting the 'YKNR' screen, it might come in handy.
 	# NOTE: On newer devices, we have RP+CRP instead ;).
 	if ! check_is_touch_device ; then
@@ -316,7 +332,7 @@ enable_auto()
 disable_auto()
 {
 	disable_hack_trigger_file "auto"
-	kh_msg "Boot the Kindle in USBMS mode" I a
+	kh_msg "SSH autostart disabled" I a
 }
 
 ## Enable verbose mode
@@ -395,6 +411,7 @@ enable_sshd_only()
 	kh_msg "Enable SSHD only over WiFi" I a
 
 	if check_is_touch_device ; then
+		edit_hack_config "USE_WIFI" "true" || return 1
 		edit_hack_config "USE_WIFI_SSHD_ONLY" "true"
 	else
 		edit_hack_config "K3_WIFI_SSHD_ONLY" "true"
@@ -511,8 +528,32 @@ show_version()
 	fi
 }
 
+## Explicit Wi-Fi actions are idempotent; they never toggle USB mode.
+start_wifi_sshd()
+{
+	if "${KH_HACK_BINDIR}/sshd-control" start; then
+		kh_msg "Wi-Fi SSH is running" I v
+	else
+		kh_msg "Could not start Wi-Fi SSH" E v
+		return 1
+	fi
+}
+
+stop_wifi_sshd()
+{
+	if "${KH_HACK_BINDIR}/sshd-control" stop; then
+		kh_msg "Wi-Fi SSH stopped" I v
+	else
+		kh_msg "Could not stop Wi-Fi SSH" E v
+		return 1
+	fi
+}
+
 ## Main
 case "${1}" in
+	"enable_sshd_only" | "disable_sshd_only" | "start_wifi_sshd" | "stop_wifi_sshd" )
+		${1}
+	;;
 	"toggle_usbnet" )
 		${1}
 	;;

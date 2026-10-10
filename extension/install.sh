@@ -54,6 +54,11 @@ if [ -d /mnt/us/${HACKNAME} ] ; then
    fi
 fi
 
+# Do not replace an existing key allowlist with the package's empty default.
+if [ -f "${USBNET_BASEDIR}/etc/dropbear/authorized_keys" ]; then
+    HACK_EXCLUDE="${HACK_EXCLUDE} ${HACKNAME}/etc/dropbear/authorized_keys"
+fi
+
 otautils_update_progressbar
 
 # Okay, now we can extract it. Since busybox's tar is very limited, we have to use a tmp directory to perform our filtering
@@ -100,7 +105,7 @@ echo "usbnetwork v${HACKVER}, $( date )" >> ${USBNET_LOG}
 otautils_update_progressbar
 
 # Make sure our custom binaries are executable -- does this matter on fat32?
-LIST="dropbearmulti usbnet-link usbnetwork libkh5 usbnetwork.sh sftp-server"
+LIST="dropbearmulti usbnet-link usbnetwork libkh5 usbnetwork.sh sftp-server sshd-control"
 for var in ${LIST} ; do
     [ -x ${USBNET_BINDIR}/${var} ] || chmod +x ${USBNET_BINDIR}/${var} >> ${USBNET_LOG} 2>&1 || exit ${ERR}
 done
@@ -151,6 +156,15 @@ cp -f ${HACKNAME}-preinit.conf /etc/upstart/${HACKNAME}-preinit.conf >> ${USBNET
 
 otautils_update_progressbar
 
+# Install the independent Wi-Fi-only boot helper and its later Upstart task.
+logmsg "I" "install" "" "installing Wi-Fi-only SSH startup"
+cp -f ${HACKNAME}-wifi /usr/local/bin/${HACKNAME}-wifi >> ${USBNET_LOG} 2>&1 || exit 1
+chmod 0755 /usr/local/bin/${HACKNAME}-wifi >> ${USBNET_LOG} 2>&1 || exit 1
+cp -f ${HACKNAME}-wifi.conf /etc/upstart/${HACKNAME}-wifi.conf >> ${USBNET_LOG} 2>&1 || exit 1
+chmod 0644 /etc/upstart/${HACKNAME}-wifi.conf >> ${USBNET_LOG} 2>&1 || exit 1
+
+otautils_update_progressbar
+
 # Setup auto USB network startup script
 logmsg "I" "install" "" "installing upstart job"
 cp -f ${HACKNAME}.conf /etc/upstart/${HACKNAME}.conf >> ${USBNET_LOG} 2>&1 || exit ${ERR}
@@ -158,7 +172,7 @@ cp -f ${HACKNAME}.conf /etc/upstart/${HACKNAME}.conf >> ${USBNET_LOG} 2>&1 || ex
 otautils_update_progressbar
 
 logmsg "I" "install" "" "cleaning up"
-rm -f ${HACKNAME}-preinit.conf ${HACKNAME}.conf ${HACKNAME}.tar.xz xzdec
+rm -f ${HACKNAME}-preinit.conf ${HACKNAME}.conf ${HACKNAME}-wifi ${HACKNAME}-wifi.conf ${HACKNAME}.tar.xz xzdec
 
 otautils_update_progressbar
 

@@ -1,0 +1,114 @@
+#!/bin/sh
+# Wi-Fi-only SSH control; no USB gadget or volumd operations.
+set +x
+umask 077
+trap '' PIPE
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+BASE=/mnt/us/usbnetlite
+[ -r "$BASE/etc/config" ] || { echo "USBNetLite configuration is missing" >&2; exit 1; }
+# This is the same user-owned shell configuration used by usbnetwork.
+# shellcheck disable=SC1091
+. "$BASE/etc/config"
+[ "${1:-}" != mode ] || { [ "${USE_WIFI_SSHD_ONLY:-false}" = true ]; exit $?; }
+[ "$(id -u)" = 0 ] || { echo "Root is required" >&2; exit 1; }
+
+DAEMON=/mnt/us/usbnetlite/bin/dropbearmulti
+PIDFILE=/mnt/us/usbnetlite/run/sshd.pid
+LOCK=/tmp/usbnetlite-sshd.lock
+PORT=${PORT:-22}
+case "$PORT" in ''|*[!0-9]*) echo "Invalid SSH port" >&2; exit 1 ;; esac
+[ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || exit 1
+
+running() {
+    [ -r "$PIDFILE" ] || return 1
+    pid=$(cat "$PIDFILE")
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$pid" -gt 1 ] && kill -0 "$pid" 2>/dev/null || return 1
+    [ "$(readlink -f "/proc/$pid/exe" 2>/dev/null)" = "$DAEMON" ] || return 1
+    # The same multicall binary also implements dbclient and scp.
+    tr '\000' '\n' < "/proc/$pid/cmdline" | awk -v path="$PIDFILE" '
+        NR==1 {name=$0; sub(/^.*\//,"",name); server=(name=="dropbear")}
+        NR==2 && name=="dropbearmulti" && $0=="dropbear" {server=1}
+        prev=="-P" && $0==path {found=1}
+        {prev=$0} END {exit !(server && found)}'
+}
+firewall_has_rule() {
+    iptables -C INPUT -i wlan0 -p tcp --dport "$PORT" -j ACCEPT >/dev/null 2>&1 && return 0
+    iptables -S INPUT 2>/dev/null | grep -F -x -- "-A INPUT -i wlan0 -p tcp -m tcp --dport $PORT -j ACCEPT" >/dev/null
+}
+start_sshd() {
+    [ "${USE_WIFI:-false}" = true ] || { echo "Enable USE_WIFI before starting Wi-Fi SSH" >&2; return 1; }
+    [ -d /sys/class/net/wlan0 ] || { echo "wlan0 is not ready" >&2; return 1; }
+    [ -x "$DAEMON" ] || { echo "USBNetLite Dropbear binary is missing" >&2; return 1; }
+    started=false
+    if ! running; then
+        mkdir -p "$BASE/run" "$BASE/etc/dropbear" || return 1
+        rm -f "$PIDFILE" || return 1
+        # Invoke the multicall binary directly: firmware updates may remove /usr/bin/dropbear.
+        # Bind the interface, not a DHCP address. This build has no syslog support or -E option.
+        set -- "$DAEMON" dropbear -P "$PIDFILE" -K 15 -R -H /mnt/us -p "$PORT" -l wlan0
+        if [ "${ALLOW_PASSWORD_LOGIN:-true}" = false ]; then
+            set -- "$@" -s
+        elif [ "${PASSWORD_OVERRIDE_ENABLED:-true}" = true ]; then
+            [ -n "${PASSWORD:-}" ] || { echo "Configured password is empty" >&2; return 1; }
+            set -- "$@" -Y "$PASSWORD"
+        fi
+        if [ -n "${WINDOW_SIZE:-}" ]; then set -- "$@" -W "$WINDOW_SIZE"; fi
+        # The existing patched binary can log a password hash; never persist its stderr.
+        "$@" </dev/null >/dev/null 2>&1 || { echo "Dropbear failed to start" >&2; return 1; }
+        count=0
+        until running; do
+            [ "$count" -lt 5 ] || { echo "Dropbear PID was not confirmed" >&2; return 1; }
+            sleep 1
+            count=$((count + 1))
+        done
+        started=true
+    fi
+    if ! firewall_has_rule; then
+        if ! iptables -I INPUT 1 -i wlan0 -p tcp --dport "$PORT" -j ACCEPT; then
+            if [ "$started" = true ] && running; then kill -TERM "$pid"; fi
+            return 1
+        fi
+    fi
+    printf 'Wi-Fi SSH running (PID %s, port %s)\n' "$pid" "$PORT" 2>/dev/null || :
+    return 0
+}
+stop_sshd() {
+    if running; then
+        stop_pid=$pid
+        kill -TERM "$stop_pid" || return 1
+        count=0
+        while running && [ "$pid" = "$stop_pid" ]; do
+            [ "$count" -lt 5 ] || { echo "Dropbear did not stop" >&2; return 1; }
+            sleep 1
+            count=$((count + 1))
+        done
+    fi
+    rm -f "$PIDFILE" || return 1
+    if firewall_has_rule; then iptables -D INPUT -i wlan0 -p tcp --dport "$PORT" -j ACCEPT || return 1; fi
+    printf 'Wi-Fi SSH stopped\n' 2>/dev/null || :
+    return 0
+}
+
+case "${1:-}" in
+    status) if running; then echo "Wi-Fi SSH running (PID $pid)"; exit 0; else echo "Wi-Fi SSH stopped"; exit 1; fi ;;
+    start|stop|toggle) ;;
+    *) echo "Usage: $0 {start|stop|status|toggle|mode}" >&2; exit 2 ;;
+esac
+# /tmp is cleared at boot; reclaim only a lock whose recorded owner has exited.
+if ! mkdir "$LOCK" 2>/dev/null; then
+    owner=$(cat "$LOCK/pid" 2>/dev/null)
+    case "$owner" in ''|*[!0-9]*) echo "SSH control is busy" >&2; exit 1 ;; esac
+    if kill -0 "$owner" 2>/dev/null; then echo "SSH control is busy" >&2; exit 1; fi
+    rm "$LOCK/pid" && rmdir "$LOCK" && mkdir "$LOCK" || exit 1
+fi
+printf '%s\n' "$$" > "$LOCK/pid" || exit 1
+trap 'rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || :' EXIT
+trap 'exit 1' INT TERM HUP
+case "$1" in
+    start) start_sshd ;;
+    stop) stop_sshd ;;
+    toggle) if running; then stop_sshd; else start_sshd; fi ;;
+esac
