@@ -28,7 +28,7 @@ password: kindle
 
 7) Open Ethernet adapter settings and set this new connected device to IP=`192.168.15.100`, subnet mask=`255.255.255.0`, everything else by default.
 
-8) Open your SSH/SFTP software of choice. For example, WinSCP. Create a new connection, name it `Kindle USB` or something like that, target IP=`192.168.15.255` (this is usbnetlite's default), port `22` (default), username `root`, but leave the password field empty. In the connection settings -> SSH -> Authentication -> point it to the `.ppk` file you created.
+8) Open your SSH/SFTP software of choice. For example, WinSCP. Create a new connection, name it `Kindle USB` or something like that, target IP=`192.168.15.244` (this is usbnetlite's default), port `22` (default), username `root`, but leave the password field empty. In the connection settings -> SSH -> Authentication -> point it to the `.ppk` file you created.
 
 9) Connect. It should warn you about a new key, accept it. See if you can access Kindle's storage and command line (PuTTy).
 
@@ -42,7 +42,7 @@ This is it, now you should be able to access your Kindle's file system.
 **A HUGE WARNING!!!** Now you have FULL access to Kindle's file system, be **very** careful about what you are doing!
 
 Additional settings are in the `Kindle USB root/usbnetlite/etc/config` file. Add those lines, if they are not there:
-`KINDLE_IP=192.168.15.255`: if you want to change it, in case you have multiple usbnetlite-enabled Kindles. Make sure to edit connection on PC if you do this. Make sure not to select the same address as in Step 7 above.
+`KINDLE_IP=192.168.15.244`: if you want to change it, in case you have multiple usbnetlite-enabled Kindles. Make sure to edit connection on PC if you do this. Make sure not to select the same address as in Step 7 above.
 `USE_WIFI="true"`: to enable SSH access over Wi-Fi. Kindle and PC must be on the same network. To get Kindle's IP address search for `;711` in the Kindle search bar and scroll down. Alternatively, tap `Network info` in KOReader's top menu, Network menu.
 
 Password-related settings - it is recommended to disable password-based access. Technically, anyone on the same network as your Kindle and knowing its IP address can access it.
