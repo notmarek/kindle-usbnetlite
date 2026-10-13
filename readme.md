@@ -46,10 +46,12 @@ Additional settings are in the `Kindle USB root/usbnetlite/etc/config` file. Add
 `USE_WIFI="true"`: to enable SSH access over Wi-Fi. Kindle and PC must be on the same network. To get Kindle's IP address search for `;711` in the Kindle search bar and scroll down. Alternatively, tap `Network info` in KOReader's top menu, Network menu.
 
 Password-related settings - it is recommended to disable password-based access. Technically, anyone on the same network as your Kindle and knowing its IP address can access it.
+```
 # Enable password override
 PASSWORD_OVERRIDE_ENABLED="false"
 PASSWORD="kindle"
 # Disabling this will enforce private key login
 ALLOW_PASSWORD_LOGIN="false"
+```
 
 **Settings need a usbnetlite restart to apply. When in doubt - just restart Kindle.**
